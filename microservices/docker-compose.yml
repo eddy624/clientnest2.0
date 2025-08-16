@@ -1,0 +1,272 @@
+networks:
+  clientnest-network:
+    driver: bridge
+
+volumes:
+  pgdata_shared:
+
+services:
+  # Shared services
+  redis:
+    image: redis:7
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - clientnest-network
+
+  # Shared Postgres for services that expect host "postgres"
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: client-nest
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: markCole256
+    volumes:
+      - pgdata_shared:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - clientnest-network
+
+  # API Gateway (Django)
+  api-gateway:
+    build: ./api-gateway
+    env_file:
+      - ./api-gateway/.env
+    depends_on:
+      user-service:
+        condition: service_healthy
+      content-service:
+        condition: service_healthy
+      social-service:
+        condition: service_healthy
+      ai-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/ready/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - clientnest-network
+
+  # User Service
+  user-service:
+    build: ./user-service
+    env_file:
+      - ./user-service/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8001:8001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/ready/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - clientnest-network
+
+  # Queue Service (Django web + Celery worker)
+  queue-service:
+    build: ./queue-service
+    env_file:
+      - ./queue-service/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8002:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/ready/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - clientnest-network
+
+  queue-worker:
+    build: ./queue-service
+    env_file:
+      - ./queue-service/.env
+    command: celery -A queue_service worker --loglevel=info
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - clientnest-network
+
+  # File Service
+  file-service:
+    build: ./file-service
+    env_file:
+      - ./file-service/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8003:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/ready/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - clientnest-network
+
+  # Notification Service
+  notification-service:
+    build: ./notification-service
+    env_file:
+      - ./notification-service/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8004:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/ready/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - clientnest-network
+
+  # Content Service (shared postgres & redis)
+  content-service:
+    build: ./content-service
+    env_file:
+      - ./content-service/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8005:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/ready/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - clientnest-network
+
+  # Social Service (shared postgres & redis)
+  social-service:
+    build: ./social-service
+    env_file:
+      - ./social-service/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8006:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/ready/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - clientnest-network
+
+  # AI Service (shared postgres & redis)
+  ai-service:
+    build: ./ai-service
+    env_file:
+      - ./ai-service/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8007:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/ready/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - clientnest-network
+
+  # Analytics Service
+  analytics-service:
+    build: ./analytics-service
+    env_file:
+      - ./analytics-service/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8008:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/ready/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - clientnest-network
+
+  # Security Service
+  security-service:
+    build: ./security-service
+    env_file:
+      - ./security-service/.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8009:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/ready/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - clientnest-network
+

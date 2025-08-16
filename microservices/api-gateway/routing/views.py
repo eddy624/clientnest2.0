@@ -6,6 +6,8 @@ from rest_framework.response import Response
 from django.conf import settings
 from django.core.cache import cache
 from django.utils import timezone
+from django.db import connections
+from django.db.utils import OperationalError
 import requests
 import logging
 import re
@@ -295,6 +297,19 @@ def health_check(request):
         'service': 'routing-service',
         'timestamp': datetime.now().isoformat()
     })
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def readiness_check(request):
+    """Readiness probe that verifies DB connectivity"""
+    try:
+        db_conn = connections['default']
+        db_conn.cursor()
+        db_ready = True
+    except OperationalError:
+        db_ready = False
+    status_code = 200 if db_ready else 503
+    return Response({'ready': db_ready}, status=status_code)
 
 @api_view(['POST'])
 @permission_classes([IsAdminUser])

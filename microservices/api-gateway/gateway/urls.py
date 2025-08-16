@@ -49,8 +49,9 @@ urlpatterns = [
     # Authentication service endpoints
     path('auth/', include('auth_service.urls')),
     
-    # Health check for the gateway itself
+    # Health and readiness for the gateway itself
     path('health/', include('routing.urls')),
+    path('ready/', include('routing.urls')),
     
     # All other requests go through the routing service
     path('', include('routing.urls')),
